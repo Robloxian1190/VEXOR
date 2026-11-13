@@ -89,6 +89,7 @@ jobs:
             throw "VEXOR.exe was not produced."
           }
           Copy-Item "upstream/LICENSE" "upstream/build/Release/LICENSE.txt" -Force
+          Copy-Item "image.png" "upstream/build/Release/VEXOR-design.png" -Force
 
       - name: Upload VEXOR Windows download
         uses: actions/upload-artifact@v4
