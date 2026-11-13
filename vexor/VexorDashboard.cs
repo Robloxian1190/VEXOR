@@ -32,7 +32,7 @@ namespace RBX_Alt_Manager
         private bool vxRefreshing;
         private readonly System.Collections.Generic.HashSet<Account> vxChecked =
             new System.Collections.Generic.HashSet<Account>();
-        private const int RefW = 1648, RefH = 928;
+        private const int RefW = 1648, RefH = 898, ArtworkTop = 30;
 
         private void InitializeVexorDashboard()
         {
@@ -40,8 +40,35 @@ namespace RBX_Alt_Manager
             StartPosition = FormStartPosition.CenterScreen;
             MinimumSize = new Size(1150, 690);
             ClientSize = new Size(RefW, RefH);
+            Icon = CreateVexorIcon();
             Shown += (s,e) => { if (vxCanvas == null) BuildVexorImageUi(); };
         }
+
+        private Icon CreateVexorIcon()
+        {
+            // Brand-specific icon rather than the upstream account-manager icon.
+            var bmp = new Bitmap(64, 64, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var b = new LinearGradientBrush(new Point(0, 0), new Point(64, 64),
+                    Color.FromArgb(189, 56, 255), Color.FromArgb(104, 21, 223)))
+                {
+                    PointF[] left = { new PointF(5,9), new PointF(20,13),
+                        new PointF(33,46), new PointF(27,59) };
+                    PointF[] right = { new PointF(59,9), new PointF(44,13),
+                        new PointF(27,59), new PointF(33,46) };
+                    g.FillPolygon(b, left);
+                    g.FillPolygon(b, right);
+                }
+            }
+            IntPtr hIcon = bmp.GetHicon();
+            try { using (var icon = Icon.FromHandle(hIcon)) return (Icon)icon.Clone(); }
+            finally { DestroyIcon(hIcon); bmp.Dispose(); }
+        }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool DestroyIcon(IntPtr hIcon);
 
         private void BuildVexorImageUi()
         {
@@ -50,7 +77,20 @@ namespace RBX_Alt_Manager
             if (File.Exists(file))
             {
                 using (var bmp = Image.FromFile(file))
-                    vxCanvas.BackgroundImage = new Bitmap(bmp);
+                {
+                    // The supplied screenshot contains its own fake Windows title bar.
+                    // Remove that strip so only the real, functional window controls remain.
+                    int crop = Math.Min(ArtworkTop, bmp.Height - 1);
+                    var clean = new Bitmap(bmp.Width, bmp.Height - crop, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+                    using (var g = Graphics.FromImage(clean))
+                    {
+                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                        g.DrawImage(bmp, new Rectangle(0, 0, clean.Width, clean.Height),
+                            new Rectangle(0, crop, bmp.Width, bmp.Height-crop), GraphicsUnit.Pixel);
+                    }
+                    vxCanvas.BackgroundImage = clean;
+                }
                 vxCanvas.BackgroundImageLayout = ImageLayout.Stretch;
             }
             else
@@ -135,7 +175,7 @@ namespace RBX_Alt_Manager
         {
             double sx = (double)vxCanvas.ClientSize.Width / RefW;
             double sy = (double)vxCanvas.ClientSize.Height / RefH;
-            return new Rectangle((int)(x*sx),(int)(y*sy),
+            return new Rectangle((int)(x*sx),(int)((y-ArtworkTop)*sy),
                 Math.Max(1,(int)(w*sx)),Math.Max(1,(int)(h*sy)));
         }
 
