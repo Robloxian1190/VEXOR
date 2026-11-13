@@ -1,0 +1,88 @@
+name: Build VEXOR for Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - "vexor/**"
+      - ".github/workflows/build-vexor.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout VEXOR build files
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Get upstream Roblox Account Manager 3.7.2
+        shell: pwsh
+        run: |
+          git clone --depth 1 --branch 3.7.2 https://github.com/ic3w0lf22/Roblox-Account-Manager.git upstream
+
+      - name: Apply VEXOR changes
+        shell: pwsh
+        run: |
+          $project = "upstream/RBX Alt Manager/RBX Alt Manager.csproj"
+          $manager = "upstream/RBX Alt Manager/AccountManager.cs"
+          Copy-Item "vexor/VexorDashboard.cs" "upstream/RBX Alt Manager/VexorDashboard.cs" -Force
+
+          $p = Get-Content $project -Raw
+          if ($p -notmatch 'VexorDashboard.cs') {
+            $p = $p -replace '<Compile Include="AccountManager.cs">', '<Compile Include="VexorDashboard.cs" />' + [Environment]::NewLine + '    <Compile Include="AccountManager.cs">'
+          }
+          $p = $p -replace '<AssemblyName>Roblox Account Manager</AssemblyName>', '<AssemblyName>VEXOR</AssemblyName>'
+          Set-Content $project $p -Encoding UTF8
+
+          $m = Get-Content $manager -Raw
+          if ($m -notmatch 'InitializeVexorDashboard\(\);') {
+            $m = $m -replace 'this\.Rescale\(\);', 'this.Rescale();' + [Environment]::NewLine + '            InitializeVexorDashboard();'
+          }
+          Set-Content $manager $m -Encoding UTF8
+
+          $packages = "upstream/RBX Alt Manager/packages.config"
+          $pkg = Get-Content $packages -Raw
+          if ($pkg -notmatch 'id="CefSharp.Common"') {
+            $pkg = $pkg -replace '<packages>', '<packages>' + [Environment]::NewLine + '  <package id="CefSharp.Common" version="109.1.110" targetFramework="net472" />'
+            Set-Content $packages $pkg -Encoding UTF8
+          }
+
+      - name: Restore packages
+        shell: pwsh
+        run: |
+          cd upstream
+          nuget restore "RBX Alt Manager.sln" -NonInteractive
+          if (!(Test-Path "packages/CefSharp.Common.109.1.110")) {
+            nuget install CefSharp.Common -Version 109.1.110 -OutputDirectory packages -NonInteractive
+          }
+
+      - name: Build Release
+        shell: pwsh
+        run: |
+          cd upstream
+          msbuild "RBX Alt Manager.sln" /m /p:Configuration=Release /p:Platform="Any CPU"
+
+      - name: Verify VEXOR executable
+        shell: pwsh
+        run: |
+          if (!(Test-Path "upstream/build/Release/VEXOR.exe")) {
+            throw "VEXOR.exe was not produced."
+          }
+          Copy-Item "upstream/LICENSE" "upstream/build/Release/LICENSE.txt" -Force
+
+      - name: Upload VEXOR Windows download
+        uses: actions/upload-artifact@v4
+        with:
+          name: VEXOR-Windows
+          path: upstream/build/Release/
+          if-no-files-found: error
+          compression-level: 6
