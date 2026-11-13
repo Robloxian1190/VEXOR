@@ -85,7 +85,8 @@ public sealed class Dashboard : Form
             ForeColor = Color.White, FlatStyle = FlatStyle.Flat,
             Cursor = Cursors.Hand, Font = new Font("Segoe UI", 10, FontStyle.Bold),
             Margin = new Padding(4) };
-        b.FlatAppearance.BorderColor = primary ? Purple : Color.FromArgb(83, 57, 116);
+        b.FlatAppearance.BorderColor = primary ? Color.FromArgb(197, 79, 255) : Color.FromArgb(70, 47, 99);
+        b.FlatAppearance.BorderSize = primary ? 2 : 1;
         b.Click += (_, _) => action();
         return b;
     }
@@ -103,7 +104,7 @@ public sealed class Dashboard : Form
         var side = new NeonPanel { Dock = DockStyle.Fill, Margin = Padding.Empty,
             BackColor = Color.FromArgb(12, 7, 27), DrawBorder = false };
         shell.Controls.Add(side, 0, 0);
-        var logo = Label("◢", 40, true, Color.FromArgb(194, 68, 255));
+        var logo = Label("V", 45, true, Color.FromArgb(194, 68, 255));
         logo.Location = new Point(25, 14); side.Controls.Add(logo);
         var brand = Label("VEXOR", 26, true);
         brand.Location = new Point(94, 24); side.Controls.Add(brand);
@@ -544,6 +545,8 @@ public sealed class Dashboard : Form
             path.AddArc(w - r, h - r, r, r, 0, 90);
             path.AddArc(1, h - r, r, r, 90, 90);
             path.CloseFigure();
+            using var halo = new Pen(Color.FromArgb(43, 174, 45, 255), 5f);
+            e.Graphics.DrawPath(halo, path);
             using var pen = new Pen(BorderColor, 1.5f);
             e.Graphics.DrawPath(pen, path);
         }
