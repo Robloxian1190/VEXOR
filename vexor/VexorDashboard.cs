@@ -196,7 +196,7 @@ namespace RBX_Alt_Manager
                 var lines = new System.Collections.Generic.List<string> { "Alias,Username" };
                 foreach(var a in AccountsList)
                 {
-                    Func<string,string> esc = x => "\\\"" + (x??"").Replace("\\\"","\\\"\\\"") + "\\\"";
+                    Func<string,string> esc = x => ((char)34).ToString() + (x??"").Replace(((char)34).ToString(), new string((char)34, 2)) + ((char)34).ToString();
                     lines.Add(esc(a.Alias)+","+esc(a.Username));
                 }
                 File.WriteAllLines(dialog.FileName,lines.ToArray());
