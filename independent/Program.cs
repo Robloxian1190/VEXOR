@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using System.Drawing.Drawing2D;
 using System.Drawing;
 using System.Text.Json;
@@ -22,6 +24,7 @@ public sealed class AccountProfile
     public string Username { get; set; } = "";
     public string Alias { get; set; } = "";
     public string Notes { get; set; } = "";
+    public bool HasEncryptedCookie { get; set; }
 }
 
 public sealed class Dashboard : Form
@@ -33,6 +36,7 @@ public sealed class Dashboard : Form
     private static readonly string DataFolder = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "VEXOR");
     private static readonly string DataFile = Path.Combine(DataFolder, "profiles.json");
+    private static readonly string CookieFolder = Path.Combine(DataFolder, "sessions");
 
     private readonly List<AccountProfile> profiles = new();
     private readonly DataGridView table = new();
@@ -202,6 +206,7 @@ public sealed class Dashboard : Form
         AddToolbar(toolbar, "Import", 90, ImportProfiles);
         AddToolbar(toolbar, "Export", 90, ExportProfiles);
         AddToolbar(toolbar, "Duplicate", 100, DuplicateProfile);
+        AddToolbar(toolbar, "Sign in", 100, SignInOfficial);
 
         table.Dock = DockStyle.Fill;
         table.Margin = new Padding(0, 4, 0, 8);
@@ -234,6 +239,7 @@ public sealed class Dashboard : Form
             DataPropertyName = nameof(AccountProfile.Username), HeaderText = "ROBLOX USERNAME"
         });
         table.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(AccountProfile.Notes), HeaderText = "NOTES" });
+        table.Columns.Add(new DataGridViewCheckBoxColumn { DataPropertyName = nameof(AccountProfile.HasEncryptedCookie), HeaderText = "SAVED SESSION", FillWeight = 35 });
         table.DataSource = binding;
         table.SelectionChanged += (_, _) => selectedName.Text =
             CurrentProfile() is { } p ? "Selected: " + p.Alias : "Select a profile to manage it";
@@ -351,6 +357,37 @@ public sealed class Dashboard : Form
 
     private void AddProfile()
     {
+        using var choice = new Form {
+            Text = "Add Roblox account • VEXOR", Size = new Size(470, 270),
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false,
+            MinimizeBox = false, BackColor = PanelColor, ForeColor = Color.White
+        };
+        var title = Label("Choose an account method", 16, true);
+        title.Location = new Point(20, 18);
+        choice.Controls.Add(title);
+        var official = Button("Sign in with Roblox", () => {
+            choice.DialogResult = DialogResult.Yes;
+        }, true);
+        official.SetBounds(22, 72, 410, 48);
+        choice.Controls.Add(official);
+        var cookie = Button("Import .ROBLOSECURITY cookie", () => {
+            choice.DialogResult = DialogResult.No;
+            choice.Close();
+        });
+        cookie.SetBounds(22, 132, 410, 48);
+        choice.Controls.Add(cookie);
+        var result = choice.ShowDialog(this);
+        if (result == DialogResult.Yes) {
+            AddBasicProfile();
+            SignInOfficial();
+        } else if (result == DialogResult.No) {
+            ImportCookieProfile();
+        }
+    }
+
+    private void AddBasicProfile()
+    {
         var username = Prompt("Roblox username");
         if (string.IsNullOrWhiteSpace(username)) return;
         var alias = Prompt("Profile display name", username);
@@ -358,6 +395,51 @@ public sealed class Dashboard : Form
         profiles.Add(new AccountProfile { Username = username, Alias = string.IsNullOrWhiteSpace(alias) ? username : alias });
         SaveProfiles();
         RefreshProfiles();
+    }
+
+    private void SignInOfficial()
+    {
+        try {
+            Process.Start(new ProcessStartInfo("https://www.roblox.com/login") { UseShellExecute = true });
+            MessageBox.Show("Sign in on the official Roblox website. VEXOR does not collect or store your password.\\n\\nYou can add a username profile separately. Official browser login is not automatically linked to a VEXOR profile.", "VEXOR • Official login", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        } catch (Exception ex) { MessageBox.Show("Could not open Roblox login: " + ex.Message); }
+    }
+
+    private void ImportCookieProfile()
+    {
+        var username = Prompt("Roblox username for this session");
+        if (string.IsNullOrWhiteSpace(username)) return;
+        var alias = Prompt("Profile display name", username);
+        if (alias is null) return;
+        var cookie = PromptSecret("Paste your .ROBLOSECURITY session cookie");
+        if (string.IsNullOrWhiteSpace(cookie)) return;
+        try {
+            var p = new AccountProfile { Username = username, Alias = string.IsNullOrWhiteSpace(alias) ? username : alias, HasEncryptedCookie = true };
+            Directory.CreateDirectory(CookieFolder);
+            var encrypted = ProtectedData.Protect(Encoding.UTF8.GetBytes(cookie.Trim()), null, DataProtectionScope.CurrentUser);
+            File.WriteAllBytes(Path.Combine(CookieFolder, p.Id.ToString("N") + ".bin"), encrypted);
+            profiles.Add(p);
+            SaveProfiles();
+            RefreshProfiles();
+            MessageBox.Show("Cookie encrypted for your Windows account. VEXOR does not yet use saved cookies to sign into Roblox or launch clients.", "VEXOR", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        } catch (Exception ex) { MessageBox.Show("Could not save encrypted session: " + ex.Message, "VEXOR"); }
+    }
+
+    private static string? PromptSecret(string title)
+    {
+        using var dialog = new Form {
+            Text = title, Size = new Size(520, 200), StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
+            BackColor = PanelColor, ForeColor = Color.White
+        };
+        var input = new TextBox { Left = 18, Top = 18, Width = 465, Height = 60, Multiline = true,
+            UseSystemPasswordChar = false, ScrollBars = ScrollBars.Vertical };
+        var save = Button("Encrypt & save", () => dialog.DialogResult = DialogResult.OK, true);
+        save.SetBounds(300, 95, 183, 40);
+        dialog.Controls.Add(input);
+        dialog.Controls.Add(save);
+        dialog.AcceptButton = save;
+        return dialog.ShowDialog() == DialogResult.OK ? input.Text : null;
     }
 
     private void EditProfile()
@@ -377,7 +459,7 @@ public sealed class Dashboard : Form
     {
         var p = CurrentProfile();
         if (p is null) { MessageBox.Show("Select a profile first."); return; }
-        profiles.Add(new AccountProfile { Username = p.Username, Alias = p.Alias + " (copy)", Notes = p.Notes });
+        profiles.Add(new AccountProfile { Username = p.Username, Alias = p.Alias + " (copy)", Notes = p.Notes, HasEncryptedCookie = false });
         SaveProfiles();
         RefreshProfiles();
     }
@@ -389,6 +471,8 @@ public sealed class Dashboard : Form
         if (MessageBox.Show("Delete profile '" + profile.Alias + "'?", "VEXOR",
             MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         profiles.Remove(profile);
+        var secretPath = Path.Combine(CookieFolder, profile.Id.ToString("N") + ".bin");
+        if (File.Exists(secretPath)) File.Delete(secretPath);
         SaveProfiles();
         RefreshProfiles();
     }
