@@ -74,9 +74,22 @@ public sealed class Dashboard : Form
 
     private void Build()
     {
-        var sidebar = new Panel { Dock = DockStyle.Left, Width = 235,
-            BackColor = Color.FromArgb(16, 11, 32), Padding = new Padding(18) };
-        Controls.Add(sidebar);
+        // Explicit table grids prevent WinForms Dock.Fill controls from
+        // overlapping their siblings when DPI or window size changes.
+        var shell = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1,
+            Margin = Padding.Empty, Padding = Padding.Empty,
+            BackColor = Background
+        };
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 235));
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        Controls.Add(shell);
+
+        var sidebar = new Panel {
+            Dock = DockStyle.Fill, BackColor = Color.FromArgb(16, 11, 32),
+            Margin = Padding.Empty
+        };
+        shell.Controls.Add(sidebar, 0, 0);
         var logo = Label("◢  VEXOR", 25, true);
         logo.Location = new Point(22, 25);
         sidebar.Controls.Add(logo);
@@ -93,54 +106,76 @@ public sealed class Dashboard : Form
             sidebar.Controls.Add(nav);
         }
         var note = Label("●  INDEPENDENT BUILD", 9, true, Color.FromArgb(73, 220, 158));
-        note.Location = new Point(20, 550);
+        note.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
         sidebar.Controls.Add(note);
+        sidebar.Resize += (_, _) => note.Location = new Point(20, sidebar.ClientSize.Height - 60);
+        note.Location = new Point(20, 570);
 
-        var main = new Panel { Dock = DockStyle.Fill, BackColor = Background,
-            Padding = new Padding(24, 20, 24, 24) };
-        Controls.Add(main);
-        main.BringToFront();
-        sidebar.BringToFront();
+        var main = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+            Margin = Padding.Empty, Padding = new Padding(20, 18, 20, 18),
+            BackColor = Background
+        };
+        main.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        main.RowStyles.Add(new RowStyle(SizeType.Absolute, 155));
+        main.RowStyles.Add(new RowStyle(SizeType.Absolute, 120));
+        main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        shell.Controls.Add(main, 1, 0);
 
-        var hero = new Panel { Dock = DockStyle.Top, Height = 145,
-            BackColor = Color.FromArgb(34, 17, 66) };
-        main.Controls.Add(hero);
+        var hero = new Panel {
+            Dock = DockStyle.Fill, Margin = new Padding(4, 0, 4, 10),
+            BackColor = Color.FromArgb(34, 17, 66)
+        };
+        main.Controls.Add(hero, 0, 0);
         var welcome = Label("Welcome to VEXOR", 26, true);
-        welcome.Location = new Point(22, 27);
+        welcome.Location = new Point(24, 25);
         hero.Controls.Add(welcome);
-        var subtitle = Label("Your own account studio. No shared process or account-manager backend.", 10, false, Muted);
-        subtitle.Location = new Point(25, 86);
+        var subtitle = Label("Your account studio. Built independently from the original manager.", 11, false, Muted);
+        subtitle.Location = new Point(26, 86);
         hero.Controls.Add(subtitle);
 
-        var summary = new Panel { Dock = DockStyle.Top, Height = 112,
-            BackColor = Background, Padding = new Padding(0, 12, 0, 12) };
-        main.Controls.Add(summary);
-        var cards = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3 };
-        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
-        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
-        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
-        summary.Controls.Add(cards);
+        var cards = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+            Margin = new Padding(0, 0, 0, 10)
+        };
+        for (int i = 0; i < 3; i++)
+            cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3f));
+        main.Controls.Add(cards, 0, 1);
         AddStat(cards, 0, "SAVED PROFILES", total, "0");
         AddStat(cards, 1, "RUNNING SESSIONS", Label("Not tracked", 17, true), "");
-        AddStat(cards, 2, "BUILD STATUS", status, "Independent v0.1");
+        AddStat(cards, 2, "BUILD STATUS", status, "Independent v0.2");
 
-        var workspace = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 18, 0, 0) };
-        main.Controls.Add(workspace);
-        workspace.BringToFront();
-        var card = new Panel { Dock = DockStyle.Fill, BackColor = PanelColor, Padding = new Padding(16) };
-        workspace.Controls.Add(card);
-        var heading = new Panel { Dock = DockStyle.Top, Height = 56 };
-        card.Controls.Add(heading);
+        var workspace = new Panel {
+            Dock = DockStyle.Fill, BackColor = PanelColor,
+            Margin = new Padding(4, 0, 4, 0), Padding = new Padding(16)
+        };
+        main.Controls.Add(workspace, 0, 2);
+        var content = new TableLayoutPanel {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4,
+            Margin = Padding.Empty, BackColor = PanelColor
+        };
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
+        content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 105));
+        workspace.Controls.Add(content);
+
+        var heading = new Panel { Dock = DockStyle.Fill };
+        content.Controls.Add(heading, 0, 0);
         var h = Label("Account Manager", 19, true);
         h.Location = new Point(6, 7);
         heading.Controls.Add(h);
 
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 60, WrapContents = false };
-        card.Controls.Add(toolbar);
+        var toolbar = new FlowLayoutPanel {
+            Dock = DockStyle.Fill, WrapContents = false,
+            AutoScroll = true, Margin = Padding.Empty
+        };
+        content.Controls.Add(toolbar, 0, 1);
         search.Width = 210;
         search.Height = 40;
         search.Font = new Font("Segoe UI", 12);
-        search.Margin = new Padding(4, 9, 8, 4);
+        search.Margin = new Padding(4, 7, 8, 4);
         search.PlaceholderText = "Search profiles...";
         search.TextChanged += (_, _) => RefreshProfiles();
         toolbar.Controls.Add(search);
@@ -150,22 +185,8 @@ public sealed class Dashboard : Form
         AddToolbar(toolbar, "Import", 90, ImportProfiles);
         AddToolbar(toolbar, "Export", 90, ExportProfiles);
 
-        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 100,
-            BackColor = Color.FromArgb(29, 21, 54) };
-        card.Controls.Add(bottom);
-        selectedName.Text = "Select a profile to manage it";
-        selectedName.ForeColor = Muted;
-        selectedName.Location = new Point(15, 14);
-        selectedName.AutoSize = true;
-        bottom.Controls.Add(selectedName);
-        var open = Button("Open Roblox website", OpenRoblox, true);
-        open.SetBounds(14, 43, 210, 43);
-        bottom.Controls.Add(open);
-        var explanation = Label("Profile storage is local. Game launching and session tracking are not yet implemented.", 9, false, Muted);
-        explanation.Location = new Point(240, 57);
-        bottom.Controls.Add(explanation);
-
         table.Dock = DockStyle.Fill;
+        table.Margin = new Padding(0, 4, 0, 8);
         table.BackgroundColor = PanelColor;
         table.BorderStyle = BorderStyle.None;
         table.GridColor = Color.FromArgb(56, 41, 82);
@@ -187,15 +208,33 @@ public sealed class Dashboard : Form
         table.AutoGenerateColumns = false;
         table.RowHeadersVisible = false;
         table.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
-        table.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(AccountProfile.Alias), HeaderText = "PROFILE NAME" });
-        table.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(AccountProfile.Username), HeaderText = "ROBLOX USERNAME" });
+        table.Columns.Add(new DataGridViewTextBoxColumn {
+            DataPropertyName = nameof(AccountProfile.Alias), HeaderText = "PROFILE NAME"
+        });
+        table.Columns.Add(new DataGridViewTextBoxColumn {
+            DataPropertyName = nameof(AccountProfile.Username), HeaderText = "ROBLOX USERNAME"
+        });
         table.DataSource = binding;
         table.SelectionChanged += (_, _) => selectedName.Text =
             CurrentProfile() is { } p ? "Selected: " + p.Alias : "Select a profile to manage it";
-        card.Controls.Add(table);
-        table.BringToFront();
-        toolbar.BringToFront();
-        heading.BringToFront();
+        content.Controls.Add(table, 0, 2);
+
+        var bottom = new Panel {
+            Dock = DockStyle.Fill, BackColor = Color.FromArgb(29, 21, 54),
+            Margin = new Padding(0, 4, 0, 0)
+        };
+        content.Controls.Add(bottom, 0, 3);
+        selectedName.Text = "Select a profile to manage it";
+        selectedName.ForeColor = Muted;
+        selectedName.Location = new Point(15, 12);
+        selectedName.AutoSize = true;
+        bottom.Controls.Add(selectedName);
+        var open = Button("Open Roblox website", OpenRoblox, true);
+        open.SetBounds(14, 42, 210, 43);
+        bottom.Controls.Add(open);
+        var explanation = Label("Profiles are stored locally. Game launching is coming later.", 9, false, Muted);
+        explanation.Location = new Point(240, 57);
+        bottom.Controls.Add(explanation);
     }
 
     private static void AddStat(TableLayoutPanel cards, int index, string name, Label value, string initial)
