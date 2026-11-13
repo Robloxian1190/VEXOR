@@ -69,6 +69,26 @@ jobs:
           $m = $m.Replace('if (General.Get<bool>("CheckForUpdates"))', 'if (false /* VEXOR updates are delivered via GitHub Actions */)')
           Set-Content $manager $m -Encoding UTF8
 
+          # VEXOR has its own process identity. The upstream app's global mutex
+          # would otherwise block either application while the other is running.
+          $program = "upstream/RBX Alt Manager/Classes/Program.cs"
+          $entry = Get-Content $program -Raw
+          $upstreamMutex = '{93b3858f-3dac-4dc0-99cb-0476efc5adce}'
+          if (!$entry.Contains($upstreamMutex)) { throw "Upstream single-instance mutex not found" }
+          $entry = $entry.Replace($upstreamMutex, '{7f9d12cb-5a63-4e5f-b9aa-38d120ac7721}')
+          $entry = $entry.Replace('Roblox Account Manager is already running!', 'VEXOR is already running!')
+          # The upstream optional cookie-file workaround keeps an exclusive
+          # file handle open for the lifetime of the app. Do not lock Roblox's
+          # shared cookie file from VEXOR; that prevents coexistence.
+          $entry = $entry.Replace('bool Apply773Fix = !(string.IsNullOrEmpty(CookiesFile) || !File.Exists(CookiesFile) || File.Exists(Path.Combine(Environment.CurrentDirectory, "no773fix.txt")));',
+            'bool Apply773Fix = false; // VEXOR: do not hold a cross-app exclusive cookie lock')
+          if ($entry -notmatch 'bool Apply773Fix = false;') { throw "Could not disable exclusive cookie-file lock" }
+          # Store relative account data in VEXOR's own extracted folder.
+          # Launching from shortcuts or other working directories remains safe.
+          $entry = $entry.Replace('int Stupid = 1337;', 'int Stupid = 1337;' + [Environment]::NewLine +
+            '            Directory.SetCurrentDirectory(AppDomain.CurrentDomain.BaseDirectory);')
+          Set-Content $program $entry -Encoding UTF8
+
           $packages = "upstream/RBX Alt Manager/packages.config"
           $pkg = Get-Content $packages -Raw
           if ($pkg -notmatch 'id="CefSharp.Common"') {
