@@ -38,21 +38,21 @@ jobs:
 
           $p = Get-Content $project -Raw
           if ($p -notmatch 'VexorDashboard.cs') {
-            $p = $p -replace '<Compile Include="AccountManager.cs">', '<Compile Include="VexorDashboard.cs" />' + [Environment]::NewLine + '    <Compile Include="AccountManager.cs">'
+            $p = $p -replace '<Compile Include="AccountManager.cs">', ('<Compile Include="VexorDashboard.cs" />' + [Environment]::NewLine + '    <Compile Include="AccountManager.cs">')
           }
           $p = $p -replace '<AssemblyName>Roblox Account Manager</AssemblyName>', '<AssemblyName>VEXOR</AssemblyName>'
           Set-Content $project $p -Encoding UTF8
 
           $m = Get-Content $manager -Raw
           if ($m -notmatch 'InitializeVexorDashboard\(\);') {
-            $m = $m -replace 'this\.Rescale\(\);', 'this.Rescale();' + [Environment]::NewLine + '            InitializeVexorDashboard();'
+            $m = $m -replace 'this\.Rescale\(\);', ('this.Rescale();' + [Environment]::NewLine + '            InitializeVexorDashboard();')
           }
           Set-Content $manager $m -Encoding UTF8
 
           $packages = "upstream/RBX Alt Manager/packages.config"
           $pkg = Get-Content $packages -Raw
           if ($pkg -notmatch 'id="CefSharp.Common"') {
-            $pkg = $pkg -replace '<packages>', '<packages>' + [Environment]::NewLine + '  <package id="CefSharp.Common" version="109.1.110" targetFramework="net472" />'
+            $pkg = $pkg -replace '<packages>', ('<packages>' + [Environment]::NewLine + '  <package id="CefSharp.Common" version="109.1.110" targetFramework="net472" />')
             Set-Content $packages $pkg -Encoding UTF8
           }
 
