@@ -43,6 +43,15 @@ jobs:
           $p = $p -replace '<AssemblyName>Roblox Account Manager</AssemblyName>', '<AssemblyName>VEXOR</AssemblyName>'
           Set-Content $project $p -Encoding UTF8
 
+          # Own executable metadata, without misrepresenting the upstream license.
+          $assemblyInfo = "upstream/RBX Alt Manager/Properties/AssemblyInfo.cs"
+          $meta = Get-Content $assemblyInfo -Raw
+          $meta = $meta.Replace('AssemblyTitle("Roblox Account Manager")', 'AssemblyTitle("VEXOR")')
+          $meta = $meta.Replace('AssemblyProduct("Roblox Account Manager")', 'AssemblyProduct("VEXOR Account Studio")')
+          $meta = $meta.Replace('AssemblyDescription("Created by ic3w0lf")', 'AssemblyDescription("VEXOR account studio; based on Roblox Account Manager by ic3w0lf")')
+          $meta = $meta.Replace('AssemblyCompany("ic3")', 'AssemblyCompany("VEXOR")')
+          Set-Content $assemblyInfo $meta -Encoding UTF8
+
           $m = Get-Content $manager -Raw
           if ($m -notmatch 'InitializeVexorDashboard\(\);') {
             $m = $m -replace 'this\.Rescale\(\);', ('this.Rescale();' + [Environment]::NewLine + '            InitializeVexorDashboard();')
@@ -89,7 +98,7 @@ jobs:
             throw "VEXOR.exe was not produced."
           }
           Copy-Item "upstream/LICENSE" "upstream/build/Release/LICENSE.txt" -Force
-          Copy-Item "image.png" "upstream/build/Release/VEXOR-design.png" -Force
+          # The new interface uses real controls, not the old screenshot.\n          # Preserve the upstream GPL license and required runtime files.
 
       - name: Upload VEXOR Windows download
         uses: actions/upload-artifact@v4
