@@ -90,7 +90,7 @@ namespace RBX_Alt_Manager
         }
         private void InitializeVexorDashboard()
         {
-            Text="VEXOR | Roblox Account Manager";
+            Text="VEXOR";
             StartPosition=FormStartPosition.CenterScreen;
             MinimumSize=new Size(1200,760);
             ClientSize=new Size(1580,880);
@@ -104,7 +104,7 @@ namespace RBX_Alt_Manager
             vSide=new Panel { Dock=DockStyle.Left,Width=270,BackColor=Color.FromArgb(12,8,25) };
             vRoot.Controls.Add(vSide);
             var brand=VL("◢  VEXOR",26,true);brand.Location=new Point(25,20);vSide.Controls.Add(brand);
-            var sub=VL("Roblox Account Manager",10,false,VMuted);sub.Location=new Point(70,76);vSide.Controls.Add(sub);
+            var sub=VL("Account Studio",10,false,VMuted);sub.Location=new Point(70,76);vSide.Controls.Add(sub);
             string[] nav={"⌂   Dashboard","♧   Accounts","▷   Launcher","▤   Sessions","▣   VM / RDP","⚙   Settings","⚒   Tools"};
             for(int i=0;i<nav.Length;i++)
             {
