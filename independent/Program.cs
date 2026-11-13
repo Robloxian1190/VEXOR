@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Drawing.Drawing2D;
 using System.Drawing;
 using System.Text.Json;
 using System.Windows.Forms;
@@ -20,6 +21,7 @@ public sealed class AccountProfile
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Username { get; set; } = "";
     public string Alias { get; set; } = "";
+    public string Notes { get; set; } = "";
 }
 
 public sealed class Dashboard : Form
@@ -39,6 +41,8 @@ public sealed class Dashboard : Form
     private readonly Label status = new();
     private readonly Label selectedName = new();
     private readonly Label empty = new();
+    private readonly Label running = new();
+    private readonly System.Windows.Forms.Timer sessionTimer = new() { Interval = 2500 };
     private readonly BindingSource binding = new();
 
     public Dashboard()
@@ -53,6 +57,16 @@ public sealed class Dashboard : Form
         LoadProfiles();
         Build();
         RefreshProfiles();
+        sessionTimer.Tick += (_, _) => RefreshSessions();
+        sessionTimer.Start();
+        RefreshSessions();
+        FormClosed += (_, _) => sessionTimer.Dispose();
+    }
+
+    private void RefreshSessions()
+    {
+        try { running.Text = Process.GetProcessesByName("RobloxPlayerBeta").Length.ToString(); }
+        catch { running.Text = "—"; }
     }
 
     private static Label Label(string text, int size, bool bold = false, Color? color = null)
@@ -90,13 +104,13 @@ public sealed class Dashboard : Form
             Margin = Padding.Empty
         };
         shell.Controls.Add(sidebar, 0, 0);
-        var logo = Label("◢  VEXOR", 25, true);
+        var logo = Label("◈  VEXOR", 25, true);
         logo.Location = new Point(22, 25);
         sidebar.Controls.Add(logo);
         var tagline = Label("ACCOUNT STUDIO", 10, false, Muted);
         tagline.Location = new Point(30, 84);
         sidebar.Controls.Add(tagline);
-        var navigation = new[] { "Dashboard", "Accounts", "Launcher", "Sessions", "Settings" };
+        var navigation = new[] { "⌂  Dashboard", "♧  Accounts", "▷  Launcher", "▤  Sessions", "⚙  Settings" };
         for (int i = 0; i < navigation.Length; i++)
         {
             int index = i;
@@ -122,17 +136,20 @@ public sealed class Dashboard : Form
         main.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         shell.Controls.Add(main, 1, 0);
 
-        var hero = new Panel {
+        var hero = new GradientHero {
             Dock = DockStyle.Fill, Margin = new Padding(4, 0, 4, 10),
             BackColor = Color.FromArgb(34, 17, 66)
         };
         main.Controls.Add(hero, 0, 0);
-        var welcome = Label("Welcome to VEXOR", 26, true);
+        var welcome = Label("Welcome back to VEXOR", 26, true);
         welcome.Location = new Point(24, 25);
         hero.Controls.Add(welcome);
-        var subtitle = Label("Your account studio. Built independently from the original manager.", 11, false, Muted);
+        var subtitle = Label("Manage profiles, monitor Roblox and organize your workspace.", 11, false, Muted);
         subtitle.Location = new Point(26, 86);
         hero.Controls.Add(subtitle);
+        var mark = Label("V", 66, true, Color.FromArgb(175, 89, 255));
+        hero.Controls.Add(mark);
+        hero.Resize += (_, _) => mark.Location = new Point(hero.ClientSize.Width - 130, 16);
 
         var cards = new TableLayoutPanel {
             Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
@@ -142,8 +159,8 @@ public sealed class Dashboard : Form
             cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / 3f));
         main.Controls.Add(cards, 0, 1);
         AddStat(cards, 0, "SAVED PROFILES", total, "0");
-        AddStat(cards, 1, "RUNNING SESSIONS", Label("Not tracked", 17, true), "");
-        AddStat(cards, 2, "BUILD STATUS", status, "Independent v0.2");
+        AddStat(cards, 1, "ROBLOX PROCESSES", running, "0");
+        AddStat(cards, 2, "VEXOR STATUS", status, "Ready  •  v0.3");
 
         var workspace = new Panel {
             Dock = DockStyle.Fill, BackColor = PanelColor,
@@ -163,7 +180,7 @@ public sealed class Dashboard : Form
 
         var heading = new Panel { Dock = DockStyle.Fill };
         content.Controls.Add(heading, 0, 0);
-        var h = Label("Account Manager", 19, true);
+        var h = Label("♧  Account Manager", 19, true);
         h.Location = new Point(6, 7);
         heading.Controls.Add(h);
 
@@ -184,6 +201,7 @@ public sealed class Dashboard : Form
         AddToolbar(toolbar, "Delete", 82, DeleteProfile);
         AddToolbar(toolbar, "Import", 90, ImportProfiles);
         AddToolbar(toolbar, "Export", 90, ExportProfiles);
+        AddToolbar(toolbar, "Duplicate", 100, DuplicateProfile);
 
         table.Dock = DockStyle.Fill;
         table.Margin = new Padding(0, 4, 0, 8);
@@ -206,6 +224,7 @@ public sealed class Dashboard : Form
         table.MultiSelect = false;
         table.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         table.AutoGenerateColumns = false;
+        table.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(30, 22, 51);
         table.RowHeadersVisible = false;
         table.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
         table.Columns.Add(new DataGridViewTextBoxColumn {
@@ -214,6 +233,7 @@ public sealed class Dashboard : Form
         table.Columns.Add(new DataGridViewTextBoxColumn {
             DataPropertyName = nameof(AccountProfile.Username), HeaderText = "ROBLOX USERNAME"
         });
+        table.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(AccountProfile.Notes), HeaderText = "NOTES" });
         table.DataSource = binding;
         table.SelectionChanged += (_, _) => selectedName.Text =
             CurrentProfile() is { } p ? "Selected: " + p.Alias : "Select a profile to manage it";
@@ -229,7 +249,7 @@ public sealed class Dashboard : Form
         selectedName.Location = new Point(15, 12);
         selectedName.AutoSize = true;
         bottom.Controls.Add(selectedName);
-        var open = Button("Open Roblox website", OpenRoblox, true);
+        var open = Button("Open Roblox", OpenRoblox, true);
         open.SetBounds(14, 42, 210, 43);
         bottom.Controls.Add(open);
         var explanation = Label("Profiles are stored locally. Game launching is coming later.", 9, false, Muted);
@@ -347,6 +367,17 @@ public sealed class Dashboard : Form
         var alias = Prompt("Edit profile name", profile.Alias);
         if (string.IsNullOrWhiteSpace(alias)) return;
         profile.Alias = alias;
+        var notes = Prompt("Profile notes", profile.Notes);
+        if (notes is not null) profile.Notes = notes;
+        SaveProfiles();
+        RefreshProfiles();
+    }
+
+    private void DuplicateProfile()
+    {
+        var p = CurrentProfile();
+        if (p is null) { MessageBox.Show("Select a profile first."); return; }
+        profiles.Add(new AccountProfile { Username = p.Username, Alias = p.Alias + " (copy)", Notes = p.Notes });
         SaveProfiles();
         RefreshProfiles();
     }
@@ -392,6 +423,21 @@ public sealed class Dashboard : Form
         try { File.WriteAllText(picker.FileName, JsonSerializer.Serialize(profiles,
             new JsonSerializerOptions { WriteIndented = true })); }
         catch (Exception ex) { MessageBox.Show("Export failed: " + ex.Message, "VEXOR"); }
+    }
+
+    private sealed class GradientHero : Panel
+    {
+        public GradientHero() { DoubleBuffered = true; }
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            using var brush = new LinearGradientBrush(ClientRectangle,
+                Color.FromArgb(46, 19, 89), Color.FromArgb(19, 12, 42), 0f);
+            e.Graphics.FillRectangle(brush, ClientRectangle);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var pen = new Pen(Color.FromArgb(66, 164, 65, 255), 1.5f);
+            for (int i = 0; i < 7; i++)
+                e.Graphics.DrawEllipse(pen, Width - 230 + i * 19, -120 + i * 8, 350, 270);
+        }
     }
 
     private static void OpenRoblox()
