@@ -155,7 +155,7 @@ public sealed class Dashboard : Form
         top.Controls.Add(stats, 0, 1);
         AddStat(stats, 0, "♧  ACCOUNTS", total, "0");
         AddStat(stats, 1, "▷  ROBLOX PROCESSES", running, "0");
-        AddStat(stats, 2, "▣  LAUNCH MODE", Label("Browser", 17, true), "");
+        AddStat(stats, 2, "▣  LAUNCH MODE", Label("Browser", 17, true), "Browser");
         AddStat(stats, 3, "ϟ  STATUS", status, "Ready");
 
         var workspace = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2,
@@ -169,7 +169,7 @@ public sealed class Dashboard : Form
         var accountGrid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
         accountGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         accountGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        accountGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        accountGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
         accountGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         accountCard.Controls.Add(accountGrid);
         var accountHeader = new Panel { Dock = DockStyle.Fill };
@@ -177,20 +177,20 @@ public sealed class Dashboard : Form
         var accountHeading = Label("♧  Account Manager", 18, true);
         accountHeading.Location = new Point(8, 12); accountHeader.Controls.Add(accountHeading);
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true,
-            WrapContents = true, Margin = Padding.Empty };
+            WrapContents = false, Margin = Padding.Empty };
         accountGrid.Controls.Add(toolbar, 0, 1);
-        search.Width = 215; search.Font = new Font("Segoe UI", 11);
+        search.Width = 165; search.Font = new Font("Segoe UI", 10);
         search.PlaceholderText = "Search accounts...";
         search.Margin = new Padding(4, 8, 6, 4);
         search.TextChanged += (_, _) => RefreshProfiles();
         toolbar.Controls.Add(search);
-        AddToolbar(toolbar, "+ Add Account", 132, AddProfile, true);
-        AddToolbar(toolbar, "Import", 85, ImportProfiles);
-        AddToolbar(toolbar, "Export", 85, ExportProfiles);
-        AddToolbar(toolbar, "Delete", 85, DeleteProfile);
-        AddToolbar(toolbar, "Edit", 80, EditProfile);
-        AddToolbar(toolbar, "Duplicate", 100, DuplicateProfile);
-        AddToolbar(toolbar, "Sign in", 85, SignInOfficial);
+        AddToolbar(toolbar, "+ Add", 88, AddProfile, true);
+        AddToolbar(toolbar, "Import", 76, ImportProfiles);
+        AddToolbar(toolbar, "Export", 76, ExportProfiles);
+        AddToolbar(toolbar, "Delete", 76, DeleteProfile);
+        AddToolbar(toolbar, "Edit", 68, EditProfile);
+        AddToolbar(toolbar, "Copy", 72, DuplicateProfile);
+        AddToolbar(toolbar, "Sign in", 80, SignInOfficial);
 
         table.Dock = DockStyle.Fill;
         table.Margin = new Padding(0, 5, 0, 4);
@@ -226,17 +226,17 @@ public sealed class Dashboard : Form
 
         var right = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2,
             Margin = Padding.Empty };
-        right.RowStyles.Add(new RowStyle(SizeType.Percent, 53));
-        right.RowStyles.Add(new RowStyle(SizeType.Percent, 47));
+        right.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        right.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         workspace.Controls.Add(right, 1, 0);
         var launch = new NeonPanel { Dock = DockStyle.Fill, Margin = new Padding(6, 4, 4, 12),
             Padding = new Padding(16), BackColor = PanelColor };
         right.Controls.Add(launch, 0, 0);
         var launchLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 5 };
-        launchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-        launchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
-        launchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
-        launchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 37));
+        launchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
+        launchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
+        launchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 49));
+        launchLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
         launchLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         launch.Controls.Add(launchLayout);
         var launchTitle = Label("▷  Launch Control", 18, true);
@@ -259,8 +259,8 @@ public sealed class Dashboard : Form
         launchLayout.Controls.Add(modeTitle, 0, 3);
         var mode = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(29, 20, 50) };
         launchLayout.Controls.Add(mode, 0, 4);
-        var modeDesc = Label("Official Roblox website\nAccount-specific game launching: not yet available", 10, false, Muted);
-        modeDesc.Location = new Point(12, 17);
+        var modeDesc = Label("Official Roblox website\nAccount switching: coming soon", 9, false, Muted);
+        modeDesc.Location = new Point(12, 9);
         mode.Controls.Add(modeDesc);
         var session = new NeonPanel { Dock = DockStyle.Fill, Margin = new Padding(6, 4, 4, 4),
             Padding = new Padding(16), BackColor = PanelColor };
