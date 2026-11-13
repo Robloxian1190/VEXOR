@@ -47,6 +47,17 @@ jobs:
           if ($m -notmatch 'InitializeVexorDashboard\(\);') {
             $m = $m -replace 'this\.Rescale\(\);', ('this.Rescale();' + [Environment]::NewLine + '            InitializeVexorDashboard();')
           }
+          # For first launch, initialize the existing Windows-protected default storage
+          # without displaying the encryption-choice overlay. Existing account files
+          # still go through LoadAccounts() and retain any password protection.
+          $oldFirstRun = 'else' + [Environment]::NewLine + '                ResetEncryption();'
+          $newFirstRun = 'else' + [Environment]::NewLine + '                DefaultEncryptionButton.PerformClick();'
+          if (!$m.Contains($oldFirstRun)) { throw "Could not find first-run encryption branch" }
+          $m = $m.Replace($oldFirstRun, $newFirstRun)
+
+          # This fork uses GitHub downloads, not the upstream in-app updater.
+          # Force this off even if an older RAMSettings.ini enabled it.
+          $m = $m.Replace('if (General.Get<bool>("CheckForUpdates"))', 'if (false /* VEXOR updates are delivered via GitHub Actions */)')
           Set-Content $manager $m -Encoding UTF8
 
           $packages = "upstream/RBX Alt Manager/packages.config"
