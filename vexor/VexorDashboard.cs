@@ -84,8 +84,8 @@ namespace RBX_Alt_Manager
                 b.Click += (s, e) => {
                     if (index == 1) vxSearch.Focus();
                     else if (index == 2) LaunchVexorSelection();
-                    else if (index == 4) { if (SettingsButton != null) SettingsButton.PerformClick(); }
-                    else if (index == 5) { if (UtilsButton != null) UtilsButton.PerformClick(); }
+                    else if (index == 4) { MessageBox.Show("Settings are available through the original app controls; a VEXOR settings page is coming soon.", "VEXOR"); }
+                    else if (index == 5) { MessageBox.Show("The VEXOR tools page is coming soon.", "VEXOR"); }
                     else if (index == 3) MessageBox.Show("Session monitoring is planned for a future VEXOR build.", "VEXOR");
                 };
                 vxSidebar.Controls.Add(b);
