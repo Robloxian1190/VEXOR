@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -9,332 +10,305 @@ namespace RBX_Alt_Manager
 {
     public partial class AccountManager
     {
-        // The background is the original VEXOR mockup uploaded to the repository.
-        // Transparent hit areas preserve its appearance while connecting to real actions.
-        private sealed class VxHotspot : Control
+        private static readonly Color VBg=Color.FromArgb(9,7,20);
+        private static readonly Color VCard=Color.FromArgb(18,13,34);
+        private static readonly Color VBorder=Color.FromArgb(100,39,149);
+        private static readonly Color VPurple=Color.FromArgb(151,21,235);
+        private static readonly Color VText=Color.FromArgb(246,240,255);
+        private static readonly Color VMuted=Color.FromArgb(177,166,199);
+
+        private sealed class VPanel : Panel
         {
-            public VxHotspot()
+            public int Radius=17;
+            public bool Glow=false;
+            public VPanel() { DoubleBuffered=true; BackColor=VCard; }
+            protected override void OnPaint(PaintEventArgs e)
             {
-                SetStyle(ControlStyles.SupportsTransparentBackColor |
-                    ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
-                BackColor = Color.Transparent;
-                Cursor = Cursors.Hand;
+                base.OnPaint(e);
+                e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
+                using(var p=new GraphicsPath())
+                {
+                    int d=Radius*2, w=Math.Max(d+2,Width-2), h=Math.Max(d+2,Height-2);
+                    p.AddArc(1,1,d,d,180,90);p.AddArc(w-d,1,d,d,270,90);
+                    p.AddArc(w-d,h-d,d,d,0,90);p.AddArc(1,h-d,d,d,90,90);p.CloseFigure();
+                    using(var pen=new Pen(Glow?Color.FromArgb(200,54,255):VBorder,Glow?2f:1.3f))
+                        e.Graphics.DrawPath(pen,p);
+                }
             }
-            protected override void OnPaint(PaintEventArgs e) { }
         }
+        private sealed class VHero : Panel
+        {
+            public VHero() { DoubleBuffered=true; BackColor=VBg; }
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
+                using(var brush=new LinearGradientBrush(ClientRectangle,
+                    Color.FromArgb(31,11,57),VBg,0f))
+                    e.Graphics.FillRectangle(brush,ClientRectangle);
+                float cx=Width*.75f, h=Height;
+                using(var brush=new LinearGradientBrush(new Point(0,0),new Point(0,Math.Max(1,Height)),
+                    Color.FromArgb(97,14,205),Color.FromArgb(216,48,250)))
+                {
+                    e.Graphics.FillPolygon(brush,new PointF[]{new PointF(cx-95,0),new PointF(cx-50,0),new PointF(cx+5,h-12),new PointF(cx-20,h-12)});
+                    e.Graphics.FillPolygon(brush,new PointF[]{new PointF(cx+95,0),new PointF(cx+52,0),new PointF(cx-20,h-12),new PointF(cx+5,h-12)});
+                }
+                using(var pen=new Pen(Color.FromArgb(65,141,23,220),1f))
+                    for(int i=0;i<10;i++) e.Graphics.DrawArc(pen,(int)cx-220+i*13,-140+i*8,470,290,175,125);
+            }
+        }
+        private Panel vRoot,vSide,vBody,vRows,vRight;
+        private VPanel vAccountsCard,vLaunchCard,vSessionCard;
+        private Label vCount,vRunning,vSelected,vStatus,vEmpty;
+        private TextBox vSearch;
+        private FlowLayoutPanel vAccountRows;
+        private Timer vTimer;
+        private readonly HashSet<Account> vChecked=new HashSet<Account>();
+        private bool vUpdating;
+        private Button vAll;
+        private readonly List<Button> vNav=new List<Button>();
 
-        private Panel vxCanvas, vxRowsPanel;
-        private Panel[] vxMetricMasks;
-        private Label vxCountLabel, vxSelectedLabel, vxRunningLabel, vxStatusLabel;
-        private bool vxSelectionAll;
-        private TextBox vxSearch;
-        private Timer vxTimer;
-        private Account[] vxVisible = new Account[0];
-        private bool vxRefreshing;
-        private readonly System.Collections.Generic.HashSet<Account> vxChecked =
-            new System.Collections.Generic.HashSet<Account>();
-        private const int RefW = 1648, RefH = 898, ArtworkTop = 30;
-
+        private Label VL(string value,int size,bool bold=false,Color? color=null)
+        {
+            return new Label { Text=value,AutoSize=true,BackColor=Color.Transparent,
+                ForeColor=color??VText,Font=new Font("Segoe UI",size,bold?FontStyle.Bold:FontStyle.Regular) };
+        }
+        private Button VB(string value,EventHandler action,bool primary=false)
+        {
+            var b=new Button { Text=value,Height=42,BackColor=primary?VPurple:Color.FromArgb(40,30,61),
+                ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Cursor=Cursors.Hand,
+                Font=new Font("Segoe UI",10,FontStyle.Bold),Margin=new Padding(4) };
+            b.FlatAppearance.BorderSize=1;
+            b.FlatAppearance.BorderColor=primary?Color.FromArgb(201,73,255):VBorder;
+            b.FlatAppearance.MouseOverBackColor=Color.FromArgb(119,27,201);
+            b.Click+=action;
+            return b;
+        }
+        private VPanel Card(Control parent)
+        {
+            var p=new VPanel { Dock=DockStyle.Fill,Margin=new Padding(6),Padding=new Padding(16) };
+            parent.Controls.Add(p);return p;
+        }
         private void InitializeVexorDashboard()
         {
-            Text = "VEXOR | Roblox Account Manager";
-            StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(1150, 690);
-            ClientSize = new Size(RefW, RefH);
-            Icon = CreateVexorIcon();
-            Shown += (s,e) => { if (vxCanvas == null) BuildVexorImageUi(); };
+            Text="VEXOR | Roblox Account Manager";
+            StartPosition=FormStartPosition.CenterScreen;
+            MinimumSize=new Size(1200,760);
+            ClientSize=new Size(1580,880);
+            Shown+=(s,e)=>{if(vRoot==null) BuildRealVexor();};
         }
-
-        private Icon CreateVexorIcon()
+        private void BuildRealVexor()
         {
-            // Brand-specific icon rather than the upstream account-manager icon.
-            var bmp = new Bitmap(64, 64, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            using (var g = Graphics.FromImage(bmp))
+            SuspendLayout();
+            vRoot=new Panel { Dock=DockStyle.Fill,BackColor=VBg };
+            Controls.Add(vRoot);vRoot.BringToFront();
+            vSide=new Panel { Dock=DockStyle.Left,Width=270,BackColor=Color.FromArgb(12,8,25) };
+            vRoot.Controls.Add(vSide);
+            var brand=VL("◢  VEXOR",26,true);brand.Location=new Point(25,20);vSide.Controls.Add(brand);
+            var sub=VL("Roblox Account Manager",10,false,VMuted);sub.Location=new Point(70,76);vSide.Controls.Add(sub);
+            string[] nav={"⌂   Dashboard","♧   Accounts","▷   Launcher","▤   Sessions","▣   VM / RDP","⚙   Settings","⚒   Tools"};
+            for(int i=0;i<nav.Length;i++)
             {
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                using (var b = new LinearGradientBrush(new Point(0, 0), new Point(64, 64),
-                    Color.FromArgb(189, 56, 255), Color.FromArgb(104, 21, 223)))
-                {
-                    PointF[] left = { new PointF(5,9), new PointF(20,13),
-                        new PointF(33,46), new PointF(27,59) };
-                    PointF[] right = { new PointF(59,9), new PointF(44,13),
-                        new PointF(27,59), new PointF(33,46) };
-                    g.FillPolygon(b, left);
-                    g.FillPolygon(b, right);
-                }
+                int index=i;
+                var b=VB(nav[i],(s,e)=>NavClick(index),i==0);
+                b.TextAlign=ContentAlignment.MiddleLeft;
+                b.Font=new Font("Segoe UI",12,i==0?FontStyle.Bold:FontStyle.Regular);
+                b.SetBounds(20,140+i*62,230,50);
+                b.BackColor=i==0?Color.FromArgb(83,15,151):vSide.BackColor;
+                if(i!=0)b.FlatAppearance.BorderSize=0;
+                vSide.Controls.Add(b);vNav.Add(b);
             }
-            IntPtr hIcon = bmp.GetHicon();
-            try { using (var icon = Icon.FromHandle(hIcon)) return (Icon)icon.Clone(); }
-            finally { DestroyIcon(hIcon); bmp.Dispose(); }
-        }
+            var online=VL("●  VEXOR READY",11,true,Color.FromArgb(36,221,135));
+            online.Anchor=AnchorStyles.Left|AnchorStyles.Bottom;
+            online.Location=new Point(28,vSide.Height-64);vSide.Controls.Add(online);
+            vSide.Resize+=(s,e)=>online.Top=vSide.Height-64;
 
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern bool DestroyIcon(IntPtr hIcon);
+            vBody=new Panel { Dock=DockStyle.Fill,BackColor=VBg,Padding=new Padding(18,16,18,18) };
+            vRoot.Controls.Add(vBody);vBody.BringToFront();
+            var hero=new VHero { Dock=DockStyle.Top,Height=155 };
+            vBody.Controls.Add(hero);
+            var hello=VL("Welcome back",26,true);hello.Location=new Point(22,32);hero.Controls.Add(hello);
+            var subtitle=VL("Manage, launch, and organize your Roblox accounts.",11,false,VMuted);
+            subtitle.Location=new Point(24,86);hero.Controls.Add(subtitle);
 
-        private void BuildVexorImageUi()
-        {
-            vxCanvas = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(9,7,19) };
-            string file = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "VEXOR-design.png");
-            if (File.Exists(file))
+            var stats=new TableLayoutPanel { Dock=DockStyle.Top,Height=125,ColumnCount=4,Padding=new Padding(0,8,0,8) };
+            for(int i=0;i<4;i++)stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,25));
+            vBody.Controls.Add(stats);stats.BringToFront();
+            string[] titles={"♧   Accounts","▷   Running","▣   Max Instances","ϟ   Status"};
+            string[] vals={"0","—","10","Ready"};
+            for(int i=0;i<4;i++)
             {
-                using (var bmp = Image.FromFile(file))
-                {
-                    // The supplied screenshot contains its own fake Windows title bar.
-                    // Remove that strip so only the real, functional window controls remain.
-                    int crop = Math.Min(ArtworkTop, bmp.Height - 1);
-                    var clean = new Bitmap(bmp.Width, bmp.Height - crop, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
-                    using (var g = Graphics.FromImage(clean))
-                    {
-                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                        g.DrawImage(bmp, new Rectangle(0, 0, clean.Width, clean.Height),
-                            new Rectangle(0, crop, bmp.Width, bmp.Height-crop), GraphicsUnit.Pixel);
-                    }
-                    vxCanvas.BackgroundImage = clean;
-                }
-                vxCanvas.BackgroundImageLayout = ImageLayout.Stretch;
+                var p=Card(stats);stats.Controls.Add(p,i,0);
+                var caption=VL(titles[i],10,false,VMuted);caption.Location=new Point(18,15);p.Controls.Add(caption);
+                var val=VL(vals[i],22,true,i==3?Color.FromArgb(30,222,125):VText);
+                val.Location=new Point(20,46);p.Controls.Add(val);
+                if(i==0)vCount=val;
+                if(i==1)vRunning=val;
+                if(i==3)vStatus=val;
             }
-            else
-                MessageBox.Show("VEXOR-design.png was not found next to VEXOR.exe.", "VEXOR");
-            Controls.Add(vxCanvas);
-            vxCanvas.BringToFront();
 
-            // The artwork remains unchanged. These invisible click regions correspond
-            // to the exact button coordinates in the original design.
-            Hit("Dashboard", 21,138,244,48, (s,e)=>RefreshVexor());
-            Hit("Select All",344,416,130,40,(s,e)=>ToggleAllVexor());
-            Hit("Accounts", 21,199,244,46, (s,e)=>vxSearch.Focus());
-            Hit("Launcher",21,259,244,46,(s,e)=>LaunchChecked());
-            Hit("Sessions",21,321,244,46,(s,e)=>MessageBox.Show("Session telemetry is not implemented yet.", "VEXOR"));
-            Hit("VM / RDP",21,380,244,46,(s,e)=>MessageBox.Show("VM / RDP integration is not implemented yet.", "VEXOR"));
-            Hit("Settings",21,442,244,46,(s,e)=>ConfigButton_Click(s,e));
-            Hit("Tools",21,502,244,46,(s,e)=>{ UtilsForm.Show(); UtilsForm.BringToFront(); });
-            Hit("Add Account",694,386,131,45,(s,e)=>Add.PerformClick());
-            Hit("Delete",1073,386,74,45,(s,e)=>RemoveChecked());
-            Hit("Launch Selected",1207,207,403,56,(s,e)=>LaunchChecked());
-            Hit("Launch All",1207,276,403,56,(s,e)=>MessageBox.Show("Launching 10 simultaneous Roblox clients is not supported in this version. Select one account and use Launch Selected.", "VEXOR"));
-            Hit("Import",834,386,96,45,(s,e)=>byCookieToolStripMenuItem_Click(s,e));
-            Hit("Export",936,386,127,45,(s,e)=>ExportVexorNames());
+            var split=new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=2,Padding=new Padding(0,14,0,0) };
+            split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,65));
+            split.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,35));
+            vBody.Controls.Add(split);split.BringToFront();
+            vAccountsCard=Card(split);split.Controls.Add(vAccountsCard,0,0);
+            var leftHeader=new Panel { Dock=DockStyle.Top,Height=54 };
+            vAccountsCard.Controls.Add(leftHeader);
+            var accountTitle=VL("♧  Account Manager",17,true);
+            accountTitle.Location=new Point(3,8);leftHeader.Controls.Add(accountTitle);
+            vSearch=new TextBox { Anchor=AnchorStyles.Top|AnchorStyles.Right,Width=240,
+                Font=new Font("Segoe UI",11),BackColor=Color.FromArgb(31,22,51),
+                ForeColor=VText,BorderStyle=BorderStyle.FixedSingle };
+            leftHeader.Controls.Add(vSearch);
+            leftHeader.Resize+=(s,e)=>vSearch.Left=leftHeader.Width-vSearch.Width-3;
+            vSearch.TextChanged+=(s,e)=>UpdateRealVexor();
 
-            // The reference contains example accounts. Mask only that region and show
-            // real accounts from the existing encrypted account store instead.
-            vxRowsPanel = new Panel { BackColor = Color.FromArgb(12, 9, 26) };
-            vxCanvas.Controls.Add(vxRowsPanel);
-            vxRowsPanel.Paint += DrawVexorRows;
-            vxRowsPanel.MouseClick += RowsClick;
-            vxRowsPanel.MouseMove += (s,e)=>vxRowsPanel.Cursor = Cursors.Hand;
+            var toolbar=new FlowLayoutPanel { Dock=DockStyle.Top,Height=58,WrapContents=false };
+            vAccountsCard.Controls.Add(toolbar);
+            vAll=VB("☐  Select All",(s,e)=>SelectAllReal());vAll.Width=135;toolbar.Controls.Add(vAll);
+            var add=VB("+  Add Account",(s,e)=>Add.PerformClick(),true);add.Width=145;toolbar.Controls.Add(add);
+            var import=VB("⇧ Import",(s,e)=>byCookieToolStripMenuItem_Click(s,e));import.Width=100;toolbar.Controls.Add(import);
+            var export=VB("⇩ Export",(s,e)=>ExportRealVexor());export.Width=100;toolbar.Controls.Add(export);
+            var delete=VB("🗑 Delete",(s,e)=>DeleteRealVexor());delete.Width=100;toolbar.Controls.Add(delete);
 
-            vxSearch = new TextBox { BorderStyle = BorderStyle.None,
-                BackColor = Color.FromArgb(24,17,42), ForeColor = Color.White,
-                Font = new Font("Segoe UI", 11), Text = "" };
-            vxCanvas.Controls.Add(vxSearch);
-            // Disable the picture's decorative multi-instance controls until those
-            // features exist; don't present fake working security/patch switches.
-            var unavailable = new Label {
-                Text = "Standard client  •  Saved account sessions\nMulti-instance and VM features: not yet available",
-                ForeColor = Color.FromArgb(202, 188, 226),
-                BackColor = Color.FromArgb(19, 13, 37),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Font = new Font("Segoe UI", 10, FontStyle.Regular),
-                Tag = new Rectangle(1206, 367, 407, 143)
-            };
-            vxCanvas.Controls.Add(unavailable);
-            vxSearch.TextChanged += (s,e)=>RefreshVexor();
+            var headings=new Panel { Dock=DockStyle.Top,Height=40,BackColor=Color.FromArgb(29,22,48) };
+            vAccountsCard.Controls.Add(headings);
+            string[] cols={"☐     #","Account Name","Username","Status","Actions"};
+            int[] loc={8,94,300,515,635};
+            for(int i=0;i<cols.Length;i++)
+            {var l=VL(cols[i],9,true,VMuted);l.Location=new Point(loc[i],12);headings.Controls.Add(l);}
+            vAccountRows=new FlowLayoutPanel { Dock=DockStyle.Fill,FlowDirection=FlowDirection.TopDown,
+                WrapContents=false,AutoScroll=true,BackColor=Color.FromArgb(13,10,27) };
+            vAccountsCard.Controls.Add(vAccountRows);
+            vAccountRows.BringToFront();
+            vAccountsCard.Controls.SetChildIndex(leftHeader,3);
+            vAccountsCard.Controls.SetChildIndex(toolbar,2);
+            vAccountsCard.Controls.SetChildIndex(headings,1);
 
-            // Cover example metric numbers baked into the design image.
-            // Real values are rendered once on top, so there are no duplicates.
-            vxMetricMasks = new Panel[4];
-            for(int i=0;i<vxMetricMasks.Length;i++)
-            {
-                vxMetricMasks[i] = new Panel { BackColor = Color.FromArgb(12, 9, 27) };
-                vxCanvas.Controls.Add(vxMetricMasks[i]);
-            }
-            vxCanvas.Paint += DrawVexorMetrics;
-            vxCountLabel = LiveLabel();
-            vxCountLabel.BringToFront();
-            vxRunningLabel = LiveLabel();
-            vxRunningLabel.BringToFront();
-            vxStatusLabel = LiveLabel();
-            vxStatusLabel.BringToFront();
-            vxSelectedLabel = LiveLabel();
-            vxSelectedLabel.BringToFront();
-            vxCanvas.Resize += (s,e)=>LayoutVexor();
-            LayoutVexor();
-            vxTimer = new Timer { Interval = 2000 };
-            vxTimer.Tick += (s,e)=>RefreshVexor();
-            vxTimer.Start();
-            FormClosed += (s,e)=>{vxTimer.Stop();vxTimer.Dispose();};
-            RefreshVexor();
+            var rightStack=new TableLayoutPanel { Dock=DockStyle.Fill,RowCount=2 };
+            rightStack.RowStyles.Add(new RowStyle(SizeType.Percent,54));
+            rightStack.RowStyles.Add(new RowStyle(SizeType.Percent,46));
+            split.Controls.Add(rightStack,1,0);
+            vLaunchCard=Card(rightStack);rightStack.Controls.Add(vLaunchCard,0,0);
+            var launchHead=VL("▷  Launch Control",17,true);launchHead.Location=new Point(18,16);vLaunchCard.Controls.Add(launchHead);
+            vSelected=VL("Selected Accounts: 0",10,false,VMuted);vSelected.Anchor=AnchorStyles.Right|AnchorStyles.Top;
+            vLaunchCard.Controls.Add(vSelected);
+            vLaunchCard.Resize+=(s,e)=>vSelected.Location=new Point(Math.Max(190,vLaunchCard.Width-vSelected.Width-18),25);
+            var launch=VB("▷  Launch Selected",(s,e)=>LaunchRealVexor(),true);
+            launch.Anchor=AnchorStyles.Left|AnchorStyles.Top|AnchorStyles.Right;
+            launch.SetBounds(18,83,Math.Max(150,vLaunchCard.Width-36),53);vLaunchCard.Controls.Add(launch);
+            var launchAll=VB("Launch All (not yet supported)",(s,e)=>MessageBox.Show(
+                "Multiple simultaneous Roblox clients are not verified. Select one account to launch.","VEXOR"));
+            launchAll.Anchor=AnchorStyles.Left|AnchorStyles.Top|AnchorStyles.Right;
+            launchAll.SetBounds(18,149,Math.Max(150,vLaunchCard.Width-36),49);vLaunchCard.Controls.Add(launchAll);
+            vLaunchCard.Resize+=(s,e)=>{launch.Width=vLaunchCard.Width-36;launchAll.Width=vLaunchCard.Width-36;};
+            var mode=VL("Launch Mode",10,false,VMuted);mode.Location=new Point(19,218);vLaunchCard.Controls.Add(mode);
+            var standard=VL("Standard Roblox client",12,true);standard.Location=new Point(19,246);vLaunchCard.Controls.Add(standard);
+            var info=VL("Saved sessions use the existing account manager.\nMulti-instance and VM controls are not available yet.",
+                9,false,VMuted);info.Location=new Point(19,288);vLaunchCard.Controls.Add(info);
+
+            vSessionCard=Card(rightStack);rightStack.Controls.Add(vSessionCard,0,1);
+            var sessionTitle=VL("▤  Session Manager",17,true);sessionTitle.Location=new Point(18,17);vSessionCard.Controls.Add(sessionTitle);
+            vEmpty=VL("▣\n\nNo active Roblox sessions\nLaunch an account to get started.",
+                12,false,VMuted);vEmpty.TextAlign=ContentAlignment.MiddleCenter;
+            vEmpty.AutoSize=false;vEmpty.Dock=DockStyle.Fill;vSessionCard.Controls.Add(vEmpty);
+            sessionTitle.BringToFront();
+
+            vTimer=new Timer { Interval=1800 };
+            vTimer.Tick+=(s,e)=>UpdateRealVexor();
+            vTimer.Start();
+            FormClosed+=(s,e)=>{vTimer.Stop();vTimer.Dispose();};
+            ResumeLayout(true);
+            UpdateRealVexor();
         }
 
-        private Label LiveLabel()
+        private void NavClick(int i)
         {
-            var l = new Label { AutoSize = false, TextAlign = ContentAlignment.MiddleLeft,
-                ForeColor = Color.White, BackColor = Color.Transparent,
-                Font = new Font("Segoe UI", 17, FontStyle.Bold) };
-            vxCanvas.Controls.Add(l);
-            return l;
+            if(i==0)UpdateRealVexor();
+            if(i==1)vSearch.Focus();
+            if(i==2)LaunchRealVexor();
+            if(i==3)MessageBox.Show("Live session tracking is planned for a future version.","VEXOR");
+            if(i==4)MessageBox.Show("VM / RDP is not implemented yet.","VEXOR");
+            if(i==5)ConfigButton_Click(this,EventArgs.Empty);
+            if(i==6){UtilsForm.Show();UtilsForm.BringToFront();}
         }
-
-        private void Hit(string name, int x,int y,int w,int h, EventHandler click)
+        private void UpdateRealVexor()
         {
-            var c = new VxHotspot { Name = name, Tag = new Rectangle(x,y,w,h) };
-            c.Click += click;
-            vxCanvas.Controls.Add(c);
-            c.BringToFront();
-        }
-
-        private Rectangle ScaleRect(int x,int y,int w,int h)
-        {
-            double sx = (double)vxCanvas.ClientSize.Width / RefW;
-            double sy = (double)vxCanvas.ClientSize.Height / RefH;
-            return new Rectangle((int)(x*sx),(int)((y-ArtworkTop)*sy),
-                Math.Max(1,(int)(w*sx)),Math.Max(1,(int)(h*sy)));
-        }
-
-        private void LayoutVexor()
-        {
-            if (vxCanvas == null) return;
-            foreach(Control c in vxCanvas.Controls)
-                if (c.Tag is Rectangle)
-                {
-                    var r=(Rectangle)c.Tag;
-                    c.Bounds=ScaleRect(r.X,r.Y,r.Width,r.Height);
-                }
-            vxRowsPanel.Bounds=ScaleRect(335,472,811,365);
-            vxSearch.Bounds=ScaleRect(864,339,238,26);
-            vxMetricMasks[0].Bounds=ScaleRect(390,239,133,51);
-            vxMetricMasks[1].Bounds=ScaleRect(609,239,112,51);
-            vxMetricMasks[2].Bounds=ScaleRect(822,239,112,51);
-            vxMetricMasks[3].Bounds=ScaleRect(1016,239,122,51);
-            vxCountLabel.Bounds=ScaleRect(402,246,128,39);
-            vxRunningLabel.Bounds=ScaleRect(625,246,100,39);
-            vxStatusLabel.Bounds=ScaleRect(1025,246,115,39);
-            vxSelectedLabel.Bounds=ScaleRect(1465,165,55,25);
-            vxRowsPanel.Invalidate();
-        }
-
-        private void RefreshVexor()
-        {
-            if (vxRefreshing || vxCanvas==null || AccountsList==null) return;
-            vxRefreshing=true;
+            if(vUpdating||vAccountRows==null||AccountsList==null)return;
+            vUpdating=true;
             try
             {
-                string q=vxSearch.Text.Trim();
-                vxVisible=AccountsList.Where(a=>a!=null &&
-                    (string.IsNullOrEmpty(q) ||
-                    (a.Username??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0 ||
-                    (a.Alias??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0)).ToArray();
-                vxChecked.RemoveWhere(a=>!AccountsList.Contains(a));
-                vxCountLabel.Text=AccountsList.Count.ToString();
-                vxRunningLabel.Text="—";
-                vxStatusLabel.Text="Ready";
-                vxSelectedLabel.Text=vxChecked.Count.ToString();
-                vxRowsPanel.Invalidate();
-            }
-            finally {vxRefreshing=false;}
-        }
-
-        private void DrawVexorMetrics(object sender, PaintEventArgs e) { }
-
-        private void ToggleAllVexor()
-        {
-            if(vxVisible.Length == 0) return;
-            bool all = vxVisible.All(a=>vxChecked.Contains(a));
-            foreach(var a in vxVisible) { if(all) vxChecked.Remove(a); else vxChecked.Add(a); }
-            RefreshVexor();
-        }
-
-        private void ExportVexorNames()
-        {
-            using(var dialog = new SaveFileDialog { Filter = "CSV files|*.csv", FileName = "VEXOR-accounts.csv" })
-            {
-                if(dialog.ShowDialog()!=DialogResult.OK)return;
-                var lines = new System.Collections.Generic.List<string> { "Alias,Username" };
-                foreach(var a in AccountsList)
+                vChecked.RemoveWhere(a=>!AccountsList.Contains(a));
+                var query=vSearch.Text.Trim();
+                var visible=AccountsList.Where(a=>a!=null&&(query.Length==0||
+                    (a.Username??"").IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0||
+                    (a.Alias??"").IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0)).ToArray();
+                vCount.Text=AccountsList.Count.ToString();
+                vSelected.Text="Selected Accounts: "+vChecked.Count;
+                // Do not show invented session counts.
+                vRunning.Text="—";
+                if(vAccountRows.Tag is string && (string)vAccountRows.Tag==query+"|"+AccountsList.Count+"|"+vChecked.Count)
+                    return;
+                vAccountRows.Tag=query+"|"+AccountsList.Count+"|"+vChecked.Count;
+                vAccountRows.SuspendLayout();vAccountRows.Controls.Clear();
+                for(int i=0;i<visible.Length;i++)
                 {
-                    Func<string,string> esc = x => ((char)34).ToString() + (x??"").Replace(((char)34).ToString(), new string((char)34, 2)) + ((char)34).ToString();
-                    lines.Add(esc(a.Alias)+","+esc(a.Username));
+                    var account=visible[i];
+                    var line=new Panel { Height=44,Width=Math.Max(690,vAccountRows.ClientSize.Width-25),
+                        BackColor=i%2==0?Color.FromArgb(23,17,39):Color.FromArgb(15,11,29),
+                        Margin=new Padding(0,0,0,1) };
+                    var check=new CheckBox { Checked=vChecked.Contains(account),Location=new Point(10,12),
+                        Size=new Size(22,22),ForeColor=VText };
+                    check.CheckedChanged+=(s,e)=>{if(check.Checked)vChecked.Add(account);else vChecked.Remove(account);
+                        vSelected.Text="Selected Accounts: "+vChecked.Count;vAccountRows.Tag=null;};
+                    line.Controls.Add(check);
+                    var number=VL((i+1).ToString(),10,false,VMuted);number.Location=new Point(52,12);line.Controls.Add(number);
+                    var name=VL(string.IsNullOrWhiteSpace(account.Alias)?account.Username:account.Alias,10,true);
+                    name.Location=new Point(100,12);line.Controls.Add(name);
+                    var username=VL(account.Username??"",10);username.Location=new Point(310,12);line.Controls.Add(username);
+                    var idle=VL("● Idle",10,false,VMuted);idle.Location=new Point(525,12);line.Controls.Add(idle);
+                    var play=VB("▷",(s,e)=>LaunchOneReal(account),true);play.SetBounds(645,4,43,35);
+                    line.Controls.Add(play);vAccountRows.Controls.Add(line);
                 }
-                File.WriteAllLines(dialog.FileName,lines.ToArray());
-                MessageBox.Show("Exported account names only. No passwords or tokens were included.","VEXOR");
+                vAccountRows.ResumeLayout(true);
             }
+            finally{vUpdating=false;}
         }
-
-        private void DrawVexorRows(object sender, PaintEventArgs e)
+        private void SelectAllReal()
         {
-            e.Graphics.Clear(Color.FromArgb(12,9,26));
-            e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
-            float sx=vxRowsPanel.Width/811f, sy=vxRowsPanel.Height/365f;
-            using(var text=new SolidBrush(Color.FromArgb(237,229,255)))
-            using(var muted=new SolidBrush(Color.FromArgb(171,160,193)))
-            using(var purple=new SolidBrush(Color.FromArgb(130,28,231)))
-            using(var line=new Pen(Color.FromArgb(42,34,65)))
-            using(var font=new Font("Segoe UI",10))
-            using(var bold=new Font("Segoe UI",10,FontStyle.Bold))
-            {
-                int n=Math.Min(vxVisible.Length,10);
-                for(int i=0;i<n;i++)
-                {
-                    int y=(int)(i*36*sy);
-                    var a=vxVisible[i];
-                    if(i%2==0)
-                        using(var b=new SolidBrush(Color.FromArgb(19,14,36)))
-                            e.Graphics.FillRectangle(b,0,y,vxRowsPanel.Width,(int)(35*sy));
-                    e.Graphics.DrawRectangle(line,(int)(12*sx),y+(int)(11*sy),(int)(16*sx),(int)(16*sy));
-                    if(vxChecked.Contains(a))
-                        e.Graphics.FillRectangle(purple,(int)(15*sx),y+(int)(14*sy),(int)(11*sx),(int)(11*sy));
-                    e.Graphics.DrawString((i+1).ToString(),font,muted,44*sx,y+8*sy);
-                    string alias=string.IsNullOrWhiteSpace(a.Alias)?(a.Username??"Account"):a.Alias;
-                    e.Graphics.DrawString(alias,bold,text,90*sx,y+7*sy);
-                    e.Graphics.DrawString(a.Username??"",font,text,282*sx,y+7*sy);
-                    e.Graphics.DrawString("●  Idle",font,muted,495*sx,y+7*sy);
-                    using(var btn=new SolidBrush(Color.FromArgb(93,17,184)))
-                        e.Graphics.FillRectangle(btn,659*sx,y+5*sy,43*sx,27*sy);
-                    e.Graphics.DrawString("▶",bold,text,672*sx,y+7*sy);
-                    e.Graphics.DrawLine(line,0,y+(int)(35*sy),vxRowsPanel.Width,y+(int)(35*sy));
-                }
-            }
+            var q=vSearch.Text.Trim();
+            var matches=AccountsList.Where(a=>a!=null&&(q.Length==0||
+                (a.Username??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0||
+                (a.Alias??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0)).ToArray();
+            bool all=matches.All(a=>vChecked.Contains(a));
+            foreach(var a in matches){if(all)vChecked.Remove(a);else vChecked.Add(a);}
+            vAccountRows.Tag=null;UpdateRealVexor();
         }
-
-        private void RowsClick(object sender, MouseEventArgs e)
+        private void LaunchOneReal(Account a)
         {
-            int row=(int)(e.Y/(36.0*vxRowsPanel.Height/365));
-            if(row<0||row>=vxVisible.Length||row>=10)return;
-            var a=vxVisible[row];
-            if(e.X>vxRowsPanel.Width*0.80)
-            {
-                vxChecked.Clear();
-                vxChecked.Add(a);
-                LaunchChecked();
-                return;
-            }
-            if(!vxChecked.Add(a))vxChecked.Remove(a);
-            RefreshVexor();
+            AccountsView.SelectObject(a);JoinServer.PerformClick();
         }
-
-        private void LaunchChecked()
+        private void LaunchRealVexor()
         {
-            if(vxChecked.Count!=1)
-            {
-                MessageBox.Show("Select exactly one account to launch. Multi-instance support is not yet verified.", "VEXOR");
-                return;
-            }
-            AccountsView.SelectObject(vxChecked.First());
-            JoinServer.PerformClick();
+            if(vChecked.Count!=1){MessageBox.Show("Select exactly one account to launch.","VEXOR");return;}
+            LaunchOneReal(vChecked.First());
         }
-
-        private void RemoveChecked()
+        private void DeleteRealVexor()
         {
-            if(vxChecked.Count!=1)
+            if(vChecked.Count!=1){MessageBox.Show("Select exactly one account to delete.","VEXOR");return;}
+            AccountsView.SelectObject(vChecked.First());Remove.PerformClick();
+            vChecked.Clear();vAccountRows.Tag=null;UpdateRealVexor();
+        }
+        private void ExportRealVexor()
+        {
+            using(var dlg=new SaveFileDialog { Filter="CSV files|*.csv",FileName="VEXOR-accounts.csv" })
             {
-                MessageBox.Show("Select exactly one account to delete.", "VEXOR");
-                return;
+                if(dlg.ShowDialog()!=DialogResult.OK)return;
+                Func<string,string> esc=x=>((char)34).ToString()+(x??"").Replace(((char)34).ToString(),new string((char)34,2))+((char)34).ToString();
+                var lines=new List<string>{"Alias,Username"};
+                foreach(var a in AccountsList)lines.Add(esc(a.Alias)+","+esc(a.Username));
+                File.WriteAllLines(dlg.FileName,lines);
+                MessageBox.Show("Exported account names only; no credentials were included.","VEXOR");
             }
-            AccountsView.SelectObject(vxChecked.First());
-            Remove.PerformClick();
-            vxChecked.Clear();
-            RefreshVexor();
         }
     }
 }
