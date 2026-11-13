@@ -24,6 +24,7 @@ namespace RBX_Alt_Manager
         }
 
         private Panel vxCanvas, vxRowsPanel;
+        private Panel[] vxMetricMasks;
         private Label vxCountLabel, vxSelectedLabel, vxRunningLabel, vxStatusLabel;
         private bool vxSelectionAll;
         private TextBox vxSearch;
@@ -140,11 +141,23 @@ namespace RBX_Alt_Manager
             vxCanvas.Controls.Add(unavailable);
             vxSearch.TextChanged += (s,e)=>RefreshVexor();
 
+            // Cover example metric numbers baked into the design image.
+            // Real values are rendered once on top, so there are no duplicates.
+            vxMetricMasks = new Panel[4];
+            for(int i=0;i<vxMetricMasks.Length;i++)
+            {
+                vxMetricMasks[i] = new Panel { BackColor = Color.FromArgb(12, 9, 27) };
+                vxCanvas.Controls.Add(vxMetricMasks[i]);
+            }
             vxCanvas.Paint += DrawVexorMetrics;
             vxCountLabel = LiveLabel();
+            vxCountLabel.BringToFront();
             vxRunningLabel = LiveLabel();
+            vxRunningLabel.BringToFront();
             vxStatusLabel = LiveLabel();
+            vxStatusLabel.BringToFront();
             vxSelectedLabel = LiveLabel();
+            vxSelectedLabel.BringToFront();
             vxCanvas.Resize += (s,e)=>LayoutVexor();
             LayoutVexor();
             vxTimer = new Timer { Interval = 2000 };
@@ -190,10 +203,14 @@ namespace RBX_Alt_Manager
                 }
             vxRowsPanel.Bounds=ScaleRect(335,472,811,365);
             vxSearch.Bounds=ScaleRect(864,339,238,26);
-            vxCountLabel.Bounds=ScaleRect(402,268,128,32);
-            vxRunningLabel.Bounds=ScaleRect(625,268,100,32);
-            vxStatusLabel.Bounds=ScaleRect(1032,268,122,32);
-            vxSelectedLabel.Bounds=ScaleRect(1494,187,110,27);
+            vxMetricMasks[0].Bounds=ScaleRect(390,239,133,51);
+            vxMetricMasks[1].Bounds=ScaleRect(609,239,112,51);
+            vxMetricMasks[2].Bounds=ScaleRect(822,239,112,51);
+            vxMetricMasks[3].Bounds=ScaleRect(1016,239,122,51);
+            vxCountLabel.Bounds=ScaleRect(402,246,128,39);
+            vxRunningLabel.Bounds=ScaleRect(625,246,100,39);
+            vxStatusLabel.Bounds=ScaleRect(1025,246,115,39);
+            vxSelectedLabel.Bounds=ScaleRect(1465,165,55,25);
             vxRowsPanel.Invalidate();
         }
 
@@ -209,7 +226,7 @@ namespace RBX_Alt_Manager
                     (a.Username??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0 ||
                     (a.Alias??"").IndexOf(q,StringComparison.OrdinalIgnoreCase)>=0)).ToArray();
                 vxChecked.RemoveWhere(a=>!AccountsList.Contains(a));
-                vxCountLabel.Text=AccountsList.Count+" / 10";
+                vxCountLabel.Text=AccountsList.Count.ToString();
                 vxRunningLabel.Text="—";
                 vxStatusLabel.Text="Ready";
                 vxSelectedLabel.Text=vxChecked.Count.ToString();
